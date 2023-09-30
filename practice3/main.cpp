@@ -174,6 +174,26 @@ int main() try
 
     float time = 0.f;
 
+    vertex vs[3] = {
+        {{0.0, 1.0}, {255, 255, 255, 255}},
+        {{1.0, 0.0}, {0, 0, 0, 255}},
+        {{0.0, 0.0}, {255, 0, 255, 255}}
+    };
+
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vs), vs, GL_STATIC_DRAW);
+
+    // ===== Debug ======
+    vertex dbg_v;
+    glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertex), &dbg_v);
+    std::cout << "VBO[0] = { {" 
+        << dbg_v.position.x << ", " << dbg_v.position.y << "}, {" 
+            << ((uint32_t) dbg_v.color[0]) << ", " << ((uint32_t) dbg_v.color[1]) << ", " 
+            << ((uint32_t) dbg_v.color[2]) << ", " << ((uint32_t) dbg_v.color[3]) << "} }" << std::endl;
+    // ===================
+
     bool running = true;
     while (running)
     {
