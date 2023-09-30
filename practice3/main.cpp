@@ -185,6 +185,20 @@ int main() try
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vs), vs, GL_STATIC_DRAW);
 
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    size_t pos_id = 0, col_id = 1;
+    size_t pos_size = 2, col_size = 4;
+    size_t pos_bytes = sizeof(vertex::position), col_bytes = sizeof(vertex::color);
+
+    glEnableVertexAttribArray(0);
+	glVertexAttribPointer(pos_id, pos_size, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (0));
+	
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(col_id, col_size, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*) (0 + pos_bytes));
+
     // ===== Debug ======
     vertex dbg_v;
     glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertex), &dbg_v);
@@ -254,6 +268,8 @@ int main() try
 
         glUseProgram(program);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         SDL_GL_SwapWindow(window);
     }
