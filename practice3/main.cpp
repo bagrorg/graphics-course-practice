@@ -174,7 +174,8 @@ int main() try
 
     float time = 0.f;
 
-    vertex vs[3] = {
+    constexpr size_t vertex_count = 3;
+    vertex vs[vertex_count] = {
         {{0.0, 1.0}, {255, 255, 255, 255}},
         {{1.0, 0.0}, {0, 0, 0, 255}},
         {{0.0, 0.0}, {255, 0, 255, 255}}
@@ -269,7 +270,7 @@ int main() try
         glUseProgram(program);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
 
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_TRIANGLES, 0, vertex_count);
 
         SDL_GL_SwapWindow(window);
     }
