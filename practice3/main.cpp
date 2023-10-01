@@ -201,6 +201,7 @@ int main() try
 	glVertexAttribPointer(col_id, col_size, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*) (0 + pos_bytes));
 
     glLineWidth(5.f);
+    glPointSize(10);
 
     // ===== Debug ======
     // vertex dbg_v;
@@ -283,6 +284,7 @@ int main() try
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
 
         glDrawArrays(GL_LINE_STRIP, 0, vs.size());
+        glDrawArrays(GL_POINTS, 0, vs.size());
 
         SDL_GL_SwapWindow(window);
     }
