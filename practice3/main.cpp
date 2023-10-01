@@ -287,11 +287,15 @@ int main() try
         case SDL_KEYDOWN:
             if (event.key.keysym.sym == SDLK_LEFT)
             {
-
+                if (quality > 1) {
+                    quality--;
+                    update_bezier();
+                }
             }
             else if (event.key.keysym.sym == SDLK_RIGHT)
             {
-
+                quality++;
+                update_bezier();
             }
             break;
         }
