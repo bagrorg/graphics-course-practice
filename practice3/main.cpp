@@ -162,7 +162,7 @@ int main() try
     if (!GLEW_VERSION_3_3)
         throw std::runtime_error("OpenGL 3.3 is not supported");
 
-    glClearColor(0.8f, 0.8f, 1.f, 0.f);
+    glClearColor(0.f, 0.f, 0.f, 0.f);
 
     auto vertex_shader = create_shader(GL_VERTEX_SHADER, vertex_shader_source);
     auto fragment_shader = create_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
@@ -174,17 +174,14 @@ int main() try
 
     float time = 0.f;
 
-    constexpr size_t vertex_count = 3;
-    vertex vs[vertex_count] = {
-        {{300.0, 300.0}, {255, 255, 255, 255}},
-        {{150.0, 300.0}, {0, 0, 0, 255}},
-        {{300.0, 0.0}, {255, 0, 255, 255}}
+    std::vector<vertex> vs;
+    auto update_vbo = [&vs]() {
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vs.size(), vs.data(), GL_STATIC_DRAW);
     };
 
     GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vs), vs, GL_STATIC_DRAW);
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
@@ -200,13 +197,15 @@ int main() try
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(col_id, col_size, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*) (0 + pos_bytes));
 
+    glLineWidth(5.f);
+
     // ===== Debug ======
-    vertex dbg_v;
-    glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertex), &dbg_v);
-    std::cout << "VBO[0] = { {" 
-        << dbg_v.position.x << ", " << dbg_v.position.y << "}, {" 
-            << ((uint32_t) dbg_v.color[0]) << ", " << ((uint32_t) dbg_v.color[1]) << ", " 
-            << ((uint32_t) dbg_v.color[2]) << ", " << ((uint32_t) dbg_v.color[3]) << "} }" << std::endl;
+    // vertex dbg_v;
+    // glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertex), &dbg_v);
+    // std::cout << "VBO[0] = { {" 
+    //     << dbg_v.position.x << ", " << dbg_v.position.y << "}, {" 
+    //         << ((uint32_t) dbg_v.color[0]) << ", " << ((uint32_t) dbg_v.color[1]) << ", " 
+    //         << ((uint32_t) dbg_v.color[2]) << ", " << ((uint32_t) dbg_v.color[3]) << "} }" << std::endl;
     // ===================
 
     bool running = true;
@@ -231,10 +230,20 @@ int main() try
             {
                 int mouse_x = event.button.x;
                 int mouse_y = event.button.y;
+                vs.push_back(
+                    {
+                        {static_cast<float>(mouse_x), static_cast<float>(mouse_y)},
+                        {255, 255, 255, 255},
+                    }
+                );
+                update_vbo();
             }
             else if (event.button.button == SDL_BUTTON_RIGHT)
             {
-
+                if (!vs.empty()) {
+                    vs.pop_back();
+                    update_vbo();
+                }
             }
             break;
         case SDL_KEYDOWN:
@@ -270,7 +279,7 @@ int main() try
         glUseProgram(program);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
 
-        glDrawArrays(GL_TRIANGLES, 0, vertex_count);
+        glDrawArrays(GL_LINE_STRIP, 0, vs.size());
 
         SDL_GL_SwapWindow(window);
     }
