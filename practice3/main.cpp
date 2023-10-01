@@ -162,7 +162,7 @@ int main() try
     if (!GLEW_VERSION_3_3)
         throw std::runtime_error("OpenGL 3.3 is not supported");
 
-    glClearColor(0.f, 0.f, 0.f, 0.f);
+    glClearColor(0.3f, 0.3f, 0.3f, 0.f);
 
     auto vertex_shader = create_shader(GL_VERTEX_SHADER, vertex_shader_source);
     auto fragment_shader = create_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
@@ -174,31 +174,65 @@ int main() try
 
     float time = 0.f;
 
-    std::vector<vertex> vs;
+    std::vector<vertex> bezier_pts;
+    std::vector<vertex> bezier_spline;
+
+    size_t quality = 4;
     
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    auto update_vbo = [&vs, vbo]() {
+    GLuint vbos[2];
+    GLuint& vbo_pts = vbos[0], &vbo_spline = vbos[1];
+    glGenBuffers(2, vbos);
+
+    auto update_vbo = [](const std::vector<vertex> &data, GLuint vbo) {
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vs.size(), vs.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * data.size(), data.data(), GL_DYNAMIC_COPY);
     };
 
-    update_vbo();
 
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    GLuint vaos[2];
+    GLuint& vao_pts = vaos[0], &vao_spline = vaos[1];
+    glGenVertexArrays(2, vaos);
 
-    size_t pos_id = 0, col_id = 1;
-    size_t pos_size = 2, col_size = 4;
-    size_t pos_bytes = sizeof(vertex::position), col_bytes = sizeof(vertex::color);
+    auto build_vao = [](GLuint vao, GLuint vbo) {
+        static size_t pos_id = 0, col_id = 1;
+        static size_t pos_size = 2, col_size = 4;
+        static size_t pos_bytes = sizeof(vertex::position), col_bytes = sizeof(vertex::color);
 
-    glEnableVertexAttribArray(0);
-	glVertexAttribPointer(pos_id, pos_size, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (0));
-	
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(col_id, col_size, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*) (0 + pos_bytes));
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBindVertexArray(vao);
+
+        glEnableVertexAttribArray(0);
+	    glVertexAttribPointer(pos_id, pos_size, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) (0));
+    
+	    glEnableVertexAttribArray(1);
+	    glVertexAttribPointer(col_id, col_size, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*) (0 + pos_bytes));
+    };
+
+    build_vao(vao_spline, vbo_spline);
+    build_vao(vao_pts, vbo_pts);
+
+    auto update_bezier = [&bezier_pts, &bezier_spline, &quality, &vbo_spline, &vbo_pts, &update_vbo]() {
+        size_t N = bezier_pts.size() * quality;
+
+        bezier_spline.clear();
+        bezier_spline.reserve(N);
+
+        for (size_t i = 0; i < N; i++) {
+            vec2 bezier_spline_part = bezier(bezier_pts, static_cast<float>(i) / (N - 1));
+            bezier_spline.push_back(
+                {
+                    bezier_spline_part,
+                    {180, 255, 180, 255}
+                }
+            );
+        }
+
+        update_vbo(bezier_pts, vbo_pts);
+        update_vbo(bezier_spline, vbo_spline);
+    };
+
+    update_vbo(bezier_pts, vbo_pts);
+    update_vbo(bezier_spline, vbo_spline);
 
     glLineWidth(5.f);
     glPointSize(10);
@@ -234,19 +268,19 @@ int main() try
             {
                 int mouse_x = event.button.x;
                 int mouse_y = event.button.y;
-                vs.push_back(
+                bezier_pts.push_back(
                     {
                         {static_cast<float>(mouse_x), static_cast<float>(mouse_y)},
                         {255, 255, 255, 255},
                     }
                 );
-                update_vbo();
+                update_bezier();
             }
             else if (event.button.button == SDL_BUTTON_RIGHT)
             {
-                if (!vs.empty()) {
-                    vs.pop_back();
-                    update_vbo();
+                if (!bezier_pts.empty()) {
+                    bezier_pts.pop_back();
+                    update_bezier();
                 }
             }
             break;
@@ -282,9 +316,17 @@ int main() try
 
         glUseProgram(program);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
+        
+        // Pts render
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_pts);
+        glBindVertexArray(vao_pts);
+        glDrawArrays(GL_LINE_STRIP, 0, bezier_pts.size());
+        glDrawArrays(GL_POINTS, 0, bezier_pts.size());
 
-        glDrawArrays(GL_LINE_STRIP, 0, vs.size());
-        glDrawArrays(GL_POINTS, 0, vs.size());
+        // Spline render
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_spline);
+        glBindVertexArray(vao_spline);
+        glDrawArrays(GL_LINE_STRIP, 0, bezier_spline.size());
 
         SDL_GL_SwapWindow(window);
     }
