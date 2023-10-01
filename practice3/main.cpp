@@ -175,13 +175,16 @@ int main() try
     float time = 0.f;
 
     std::vector<vertex> vs;
-    auto update_vbo = [&vs]() {
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vs.size(), vs.data(), GL_STATIC_DRAW);
-    };
-
+    
     GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    auto update_vbo = [&vs, vbo]() {
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vs.size(), vs.data(), GL_STATIC_DRAW);
+    };
+
+    update_vbo();
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
