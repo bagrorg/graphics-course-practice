@@ -158,6 +158,7 @@ int main() try
         throw std::runtime_error("OpenGL 3.3 is not supported");
 
     glClearColor(0.1f, 0.1f, 0.2f, 0.f);
+    glEnable(GL_DEPTH_TEST);
 
     auto vertex_shader = create_shader(GL_VERTEX_SHADER, vertex_shader_source);
     auto fragment_shader = create_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
@@ -198,6 +199,12 @@ int main() try
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(obj_data::vertex), (void*) (0 + sizeof(obj_data::vertex::position) + sizeof(obj_data::vertex::normal)));
 
+    constexpr float near = 0.01;
+    constexpr float far = 1000.0;
+    constexpr float ang = 90.f * M_PIl / 180.f;
+    const float right = near * std::tan(ang / 2);
+    const float top = right / ((float) width / height);
+
     std::map<SDL_Keycode, bool> button_down;
 
     bool running = true;
@@ -233,17 +240,18 @@ int main() try
         last_frame_start = now;
         time += dt;
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         float angle = time;
+        float scale = 0.5;
         float cos = std::cos(angle);
         float sin = std::sin(angle);
 
         float model[16] =
         {
-            0.5f * cos, 0.f, -sin, 0.f,
-            0.f, 0.5f, 0.f, 0.f,
-            sin, 0.f, 0.5f * cos, 0.f,
+            scale * cos, 0.f, -sin * scale, 0.f,
+            0.f, scale, 0.f, 0.f,
+            scale * sin, 0.f, scale * cos, 0.f,
             0.f, 0.f, 0.f, 1.f,
         };
 
@@ -251,16 +259,16 @@ int main() try
         {
             1.f, 0.f, 0.f, 0.f,
             0.f, 1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
+            0.f, 0.f, 1.f, -2.f,
             0.f, 0.f, 0.f, 1.f,
         };
 
         float projection[16] =
         {
-            1.f, 0.f, 0.f, 0.f,
-            0.f, 1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
-            0.f, 0.f, 0.f, 1.f,
+            near / right, 0.f, 0.f, 0.f,
+            0.f, near / top, 0.f, 0.f,
+            0.f, 0.f, -(far + near) / (far - near), -2 * far * near / (far - near),
+            0.f, 0.f, -1.f, 0.f,
         };
 
         glUseProgram(program);
@@ -268,7 +276,7 @@ int main() try
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
         glUniformMatrix4fv(projection_location, 1, GL_TRUE, projection);
 
-        glDrawElements(GL_TRIANGLES, bunny.vertices.size(), GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, nullptr);
 
         SDL_GL_SwapWindow(window);
     }
