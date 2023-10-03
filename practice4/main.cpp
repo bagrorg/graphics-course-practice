@@ -1,3 +1,4 @@
+#include <SDL2/SDL_keycode.h>
 #ifdef WIN32
 #include <SDL.h>
 #undef main
@@ -207,6 +208,10 @@ int main() try
 
     std::map<SDL_Keycode, bool> button_down;
 
+    float bunny_x = 0.f;
+    float bunny_y = 0.f;
+    float speed = 1.0;
+
     bool running = true;
     while (running)
     {
@@ -232,6 +237,7 @@ int main() try
             break;
         }
 
+
         if (!running)
             break;
 
@@ -239,6 +245,22 @@ int main() try
         float dt = std::chrono::duration_cast<std::chrono::duration<float>>(now - last_frame_start).count();
         last_frame_start = now;
         time += dt;
+
+        if (button_down[SDLK_LEFT]) {
+            bunny_x -= speed * dt;
+        }
+        
+        if (button_down[SDLK_RIGHT]) {
+            bunny_x += speed * dt;
+        }
+
+        if (button_down[SDLK_UP]) {
+            bunny_y += speed * dt;
+        }
+
+        if (button_down[SDLK_DOWN]) {
+            bunny_y -= speed * dt;
+        }
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -249,8 +271,8 @@ int main() try
 
         float model[16] =
         {
-            scale * cos, 0.f, -sin * scale, 0.f,
-            0.f, scale, 0.f, 0.f,
+            scale * cos, 0.f, -sin * scale, bunny_x,
+            0.f, scale, 0.f, bunny_y,
             scale * sin, 0.f, scale * cos, 0.f,
             0.f, 0.f, 0.f, 1.f,
         };
