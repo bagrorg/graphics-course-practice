@@ -272,11 +272,27 @@ int main() try
         float cos = std::cos(angle);
         float sin = std::sin(angle);
 
-        float model[16] =
+        float model_1[16] =
         {
             scale * cos, 0.f, -sin * scale, bunny_x,
-            0.f, scale, 0.f, bunny_y,
+            0.f, scale, 0.f, bunny_y - 1.25f,
             scale * sin, 0.f, scale * cos, 0.f,
+            0.f, 0.f, 0.f, 1.f,
+        };
+
+        float model_2[16] =
+        {
+            scale * cos, -sin * scale, 0.f, bunny_x + 1.25f,
+            sin * scale, scale * cos, 0.f, bunny_y,
+            0.f, 0.f, scale, 0.f,
+            0.f, 0.f, 0.f, 1.f,
+        };
+
+        float model_3[16] =
+        {
+            scale, 0.f, 0.f, bunny_x - 1.25f,
+            0.f, scale * cos, -sin * scale, bunny_y,
+            0.f, scale * sin, scale * cos, 0.f,
             0.f, 0.f, 0.f, 1.f,
         };
 
@@ -297,10 +313,16 @@ int main() try
         };
 
         glUseProgram(program);
-        glUniformMatrix4fv(model_location, 1, GL_TRUE, model);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
         glUniformMatrix4fv(projection_location, 1, GL_TRUE, projection);
 
+        glUniformMatrix4fv(model_location, 1, GL_TRUE, model_1);
+        glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, nullptr);
+
+        glUniformMatrix4fv(model_location, 1, GL_TRUE, model_2);
+        glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, nullptr);
+
+        glUniformMatrix4fv(model_location, 1, GL_TRUE, model_3);
         glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, nullptr);
 
         SDL_GL_SwapWindow(window);
