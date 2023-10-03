@@ -160,6 +160,9 @@ int main() try
 
     glClearColor(0.1f, 0.1f, 0.2f, 0.f);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+
+    // glCullFace(GL_FRONT);
 
     auto vertex_shader = create_shader(GL_VERTEX_SHADER, vertex_shader_source);
     auto fragment_shader = create_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
