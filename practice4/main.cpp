@@ -34,9 +34,8 @@ void glew_fail(std::string_view message, GLenum error)
 const char vertex_shader_source[] =
 R"(#version 330 core
 
-uniform mat4 model;
 uniform mat4 view;
-uniform mat4 projection;
+uniform mat4 transform;
 
 layout (location = 0) in vec3 in_position;
 layout (location = 1) in vec3 in_normal;
@@ -45,8 +44,8 @@ out vec3 normal;
 
 void main()
 {
-    gl_Position = projection * view * model * vec4(in_position, 1.0);
-    normal = normalize(mat3(model) * in_normal);
+    gl_Position = view * transform * vec4(in_position, 1.0);
+    normal = mat3(transform) * in_normal;
 }
 )";
 
@@ -59,24 +58,8 @@ layout (location = 0) out vec4 out_color;
 
 void main()
 {
-    vec3 ambient_dir = vec3(0.0, 1.0, 0.0);
-    vec3 ambient_color = vec3(0.2);
-
-    vec3 light1_dir = normalize(vec3( 3.0, 2.0,  1.0));
-    vec3 light2_dir = normalize(vec3(-3.0, 2.0, -1.0));
-
-    vec3 light1_color = vec3(1.0,  0.5, 0.25);
-    vec3 light2_color = vec3(0.25, 0.5, 1.0 );
-
-    vec3 n = normalize(normal);
-
-    vec3 color = (0.5 + 0.5 * dot(n, ambient_dir)) * ambient_color
-        + max(0.0, dot(n, light1_dir)) * light1_color
-        + max(0.0, dot(n, light2_dir)) * light2_color
-        ;
-
-    float gamma = 1.0 / 2.2;
-    out_color = vec4(pow(min(vec3(1.0), color), vec3(gamma)), 1.0);
+    float lightness = 0.5 + 0.5 * dot(normalize(normal), normalize(vec3(1.0, 2.0, 3.0)));
+    out_color = vec4(vec3(lightness), 1.0);
 }
 )";
 
@@ -157,15 +140,14 @@ int main() try
     if (!GLEW_VERSION_3_3)
         throw std::runtime_error("OpenGL 3.3 is not supported");
 
-    glClearColor(0.1f, 0.1f, 0.2f, 0.f);
+    glClearColor(0.8f, 0.8f, 1.f, 0.f);
 
     auto vertex_shader = create_shader(GL_VERTEX_SHADER, vertex_shader_source);
     auto fragment_shader = create_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
     auto program = create_program(vertex_shader, fragment_shader);
 
-    GLuint model_location = glGetUniformLocation(program, "model");
     GLuint view_location = glGetUniformLocation(program, "view");
-    GLuint projection_location = glGetUniformLocation(program, "projection");
+    GLuint transform_location = glGetUniformLocation(program, "transform");
 
     std::string project_root = PROJECT_ROOT;
     obj_data bunny = parse_obj(project_root + "/bunny.obj");
@@ -211,14 +193,6 @@ int main() try
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        float model[16] =
-        {
-            1.f, 0.f, 0.f, 0.f,
-            0.f, 1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
-            0.f, 0.f, 0.f, 1.f,
-        };
-
         float view[16] =
         {
             1.f, 0.f, 0.f, 0.f,
@@ -227,7 +201,7 @@ int main() try
             0.f, 0.f, 0.f, 1.f,
         };
 
-        float projection[16] =
+        float transform[16] =
         {
             1.f, 0.f, 0.f, 0.f,
             0.f, 1.f, 0.f, 0.f,
@@ -236,9 +210,8 @@ int main() try
         };
 
         glUseProgram(program);
-        glUniformMatrix4fv(model_location, 1, GL_TRUE, model);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
-        glUniformMatrix4fv(projection_location, 1, GL_TRUE, projection);
+        glUniformMatrix4fv(transform_location, 1, GL_TRUE, transform);
 
         SDL_GL_SwapWindow(window);
     }

@@ -2,7 +2,6 @@
 
 #include <vector>
 #include <filesystem>
-#include <array>
 
 struct obj_data
 {
