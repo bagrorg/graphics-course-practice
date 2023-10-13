@@ -58,6 +58,7 @@ const char fragment_shader_source[] =
 R"(#version 330 core
 
 uniform sampler2D cow_texture;
+uniform float time;
 
 in vec3 normal;
 in vec2 uv;
@@ -66,8 +67,10 @@ layout (location = 0) out vec4 out_color;
 
 void main()
 {
+    vec2 moved_uv = uv + vec2(sin(time), cos(time));
+
     float lightness = 0.5 + 0.5 * dot(normalize(normal), normalize(vec3(1.0, 2.0, 3.0)));
-    vec3 albedo = texture(cow_texture, uv).xyz;
+    vec3 albedo = texture(cow_texture, moved_uv).xyz;
     out_color = vec4(lightness * albedo, 1.0);
 }
 )";
@@ -158,6 +161,7 @@ int main() try
     GLuint viewmodel_location = glGetUniformLocation(program, "viewmodel");
     GLuint projection_location = glGetUniformLocation(program, "projection");
     GLuint cow_texture_location = glGetUniformLocation(program, "cow_texture");
+    GLuint time_location = glGetUniformLocation(program, "time");
 
     std::string project_root = PROJECT_ROOT;
     std::string cow_texture_path = project_root + "/cow.png";
@@ -292,6 +296,7 @@ int main() try
         glUniformMatrix4fv(viewmodel_location, 1, GL_TRUE, viewmodel);
         glUniformMatrix4fv(projection_location, 1, GL_TRUE, projection);
     	glUniform1i(cow_texture_location, 1);
+	glUniform1f(time_location, time);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, chessboard_texture);
