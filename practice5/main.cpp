@@ -57,6 +57,8 @@ void main()
 const char fragment_shader_source[] =
 R"(#version 330 core
 
+uniform sampler2D cow_texture;
+
 in vec3 normal;
 in vec2 uv;
 
@@ -65,7 +67,7 @@ layout (location = 0) out vec4 out_color;
 void main()
 {
     float lightness = 0.5 + 0.5 * dot(normalize(normal), normalize(vec3(1.0, 2.0, 3.0)));
-    vec3 albedo = vec3(uv, 0.0);
+    vec3 albedo = texture(cow_texture, uv).xyz;
     out_color = vec4(lightness * albedo, 1.0);
 }
 )";
@@ -155,6 +157,7 @@ int main() try
 
     GLuint viewmodel_location = glGetUniformLocation(program, "viewmodel");
     GLuint projection_location = glGetUniformLocation(program, "projection");
+    GLuint cow_texture_location = glGetUniformLocation(program, "cow_texture");
 
     std::string project_root = PROJECT_ROOT;
     std::string cow_texture_path = project_root + "/cow.png";
@@ -190,6 +193,21 @@ int main() try
 
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(obj_data::vertex), (void*) (0 + sizeof(obj_data::vertex::position) + sizeof(obj_data::vertex::normal)));
+
+    size_t tex_w = 1024, tex_h = 1024;
+    std::vector<uint32_t> texture_data(tex_w * tex_h);
+    for (size_t x = 0; x < tex_w; x++) {
+	    for (size_t y = 0; y < tex_h; y++) {
+	    	texture_data[x * 1024 + y] = (y + (x % 2)) % 2 == 0 ? 0xFFFFFF : 0xFF000000;
+	    }
+    }
+
+    GLuint cow_texture;
+    glGenTextures(1, &cow_texture);
+    glBindTexture(GL_TEXTURE_2D, cow_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tex_w, tex_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data.data());
 
     std::map<SDL_Keycode, bool> button_down;
 
@@ -258,6 +276,10 @@ int main() try
         glUseProgram(program);
         glUniformMatrix4fv(viewmodel_location, 1, GL_TRUE, viewmodel);
         glUniformMatrix4fv(projection_location, 1, GL_TRUE, projection);
+    	glUniform1i(cow_texture_location, 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, cow_texture);
 
 	glDrawElements(GL_TRIANGLES, cow.indices.size(), GL_UNSIGNED_INT, nullptr);
 
