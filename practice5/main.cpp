@@ -34,7 +34,7 @@ void glew_fail(std::string_view message, GLenum error)
 }
 
 const char vertex_shader_source[] =
-R"(#version 330 core
+R"(#version 400 core
 
 uniform mat4 viewmodel;
 uniform mat4 projection;
@@ -55,7 +55,7 @@ void main()
 )";
 
 const char fragment_shader_source[] =
-R"(#version 330 core
+R"(#version 400 core
 
 uniform sampler2D cow_texture;
 
@@ -66,8 +66,19 @@ layout (location = 0) out vec4 out_color;
 
 void main()
 {
+    float mipmap = textureQueryLod(cow_texture, uv).x;
+
     float lightness = 0.5 + 0.5 * dot(normalize(normal), normalize(vec3(1.0, 2.0, 3.0)));
-    vec3 albedo = texture(cow_texture, uv).xyz;
+    vec3 albedo;
+    if (mipmap == 1.0) {
+    	albedo = vec3(1.0, 0.0, 0.0);
+    } else if (mipmap == 2.0) {
+    	albedo = vec3(0.0, 1.0, 0.0);
+    } else if (mipmap == 3.0) {
+    	albedo = vec3(0.0, 0.0, 1.0);
+    } else {
+    	albedo = textureLod(cow_texture, uv, mipmap).xyz;
+    }
     out_color = vec4(lightness * albedo, 1.0);
 }
 )";
@@ -206,8 +217,9 @@ int main() try
     glGenTextures(1, &cow_texture);
     glBindTexture(GL_TEXTURE_2D, cow_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tex_w, tex_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data.data());
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     std::map<SDL_Keycode, bool> button_down;
 
