@@ -317,8 +317,6 @@ int main() try {
         float near = 0.1f;
         float far = 100.f;
 
-        glm::mat4 model(1.f);
-
         glm::mat4 view(1.f);
         view = glm::translate(view, {0.f, 0.f, -camera_distance});
         view = glm::rotate(view, camera_angle, {0.f, 1.f, 0.f});
@@ -330,7 +328,6 @@ int main() try {
         glm::vec3 camera_position = (glm::inverse(view) * glm::vec4(0.f, 0.f, 0.f, 1.f)).xyz();
 
         glUseProgram(program);
-        glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
         glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
         glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
         glUniform3fv(camera_position_location, 1, (float *) (&camera_position));
@@ -341,11 +338,21 @@ int main() try {
         glUniform3f(pl_position_location, std::sin(time) / 2, 0.0f, 1.2f);
         glUniform3f(pl_color_location, 0.0f, 0.7f, 0.0f);
         glUniform3f(pl_attenuation_location, 1.0f, 0.0f, 0.01f);
-        glUniform1f(glossiness_location, 5.f);
-        glUniform1f(roughness_location, 0.1f);
 
         glBindVertexArray(suzanne_vao);
-        glDrawElements(GL_TRIANGLES, suzanne.indices.size(), GL_UNSIGNED_INT, nullptr);
+
+	float scale = 3.0;
+	for (size_t i = 0; i < 9; i++) {
+        	glm::mat4 model(1.f);
+		model = glm::translate(model, glm::vec3(-scale + scale * (i % 3), scale - scale * (i / 3), 0.f));
+        	glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
+
+		float t = (float) i / 9;
+        	glUniform1f(roughness_location, 0.1f * (1.f - t) + 0.5 * t);
+        	glUniform1f(glossiness_location, 1.f * (1.f - t) + 5.f * t);
+
+        	glDrawElements(GL_TRIANGLES, suzanne.indices.size(), GL_UNSIGNED_INT, nullptr);
+	}
 
         SDL_GL_SwapWindow(window);
     }
