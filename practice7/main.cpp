@@ -82,6 +82,10 @@ uniform vec3 pl_position;
 uniform vec3 pl_color;
 uniform vec3 pl_attenuation;
 
+// specular
+uniform float glossiness;
+uniform float roughness;
+
 
 in vec3 position;
 in vec3 normal;
@@ -92,13 +96,23 @@ vec3 diffuse(vec3 direction) {
 	return albedo * max(0.0, dot(normal, direction));
 }
 
+vec3 specular(vec3 direction) {
+	float power = 1 / (roughness * roughness) - 1;
+	vec3 view_direction = normalize(camera_position - position);
+	vec3 reflected = reflect(-direction, normal);
+
+	return glossiness * 
+	       albedo * 
+	       pow(max(0.0, dot(reflected, view_direction)), power);
+}
+
 void main()
 {
     vec3 ambient = albedo * ambient_light;
     vec3 color = ambient;
     
     // sun
-    color += diffuse(sun_direction) * sun_color;
+    color += (diffuse(sun_direction) + specular(sun_direction)) * sun_color;
 
     // point
     vec3 dir = pl_position - position;
@@ -107,9 +121,9 @@ void main()
     	(pl_attenuation.x + 
 	 pl_attenuation.y * dist + 
 	 pl_attenuation.z * dist * dist);
-    color += diffuse(normalize(dir)) * pl_color * att;
+    color += (diffuse(normalize(dir)) + specular(normalize(dir))) * pl_color * att;
 
-    out_color = vec4(color, 1.0);
+    out_color = vec4(color, 0.5);
 }
 )";
 
@@ -200,6 +214,8 @@ int main() try {
     GLuint pl_position_location = glGetUniformLocation(program, "pl_position");
     GLuint pl_color_location = glGetUniformLocation(program, "pl_color");
     GLuint pl_attenuation_location = glGetUniformLocation(program, "pl_attenuation");
+    GLuint glossiness_location = glGetUniformLocation(program, "glossiness");
+    GLuint roughness_location = glGetUniformLocation(program, "roughness");
 
     std::string project_root = PROJECT_ROOT;
     std::string suzanne_model_path = project_root + "/suzanne.obj";
@@ -268,6 +284,14 @@ int main() try {
         last_frame_start = now;
         time += dt;
 
+	if (transparent) {
+		glEnable(GL_BLEND);
+		glBlendEquation(GL_FUNC_ADD);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	} else {
+		glDisable(GL_BLEND);
+	}
+
         if (button_down[SDLK_UP])
             camera_distance -= 4.f * dt;
         if (button_down[SDLK_DOWN])
@@ -317,6 +341,8 @@ int main() try {
         glUniform3f(pl_position_location, std::sin(time) / 2, 0.0f, 1.2f);
         glUniform3f(pl_color_location, 0.0f, 0.7f, 0.0f);
         glUniform3f(pl_attenuation_location, 1.0f, 0.0f, 0.01f);
+        glUniform1f(glossiness_location, 5.f);
+        glUniform1f(roughness_location, 0.1f);
 
         glBindVertexArray(suzanne_vao);
         glDrawElements(GL_TRIANGLES, suzanne.indices.size(), GL_UNSIGNED_INT, nullptr);
