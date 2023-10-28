@@ -125,11 +125,35 @@ uniform sampler2D render_result;
 
 uniform int mode;
 
+uniform float time;
+
 layout (location = 0) out vec4 out_color;
 
 void main()
 {
-    out_color = texture(render_result, texcoord);
+    vec2 res_texcoord = texcoord;
+    if (mode == 2) {
+    	res_texcoord = texcoord + vec2(texcoord.x * abs(sin(time)), 0.0);
+    }
+    out_color = vec4(0);
+    if (mode == 3) {
+        float sum = 0.0;
+        float radius = 5.0;
+	int N = 7;
+    	for (int x = -N; x <= N; ++x) {
+		for (int y = -N; y <= N; ++y) {
+			float c = exp(-float(x*x + y*y) / (radius*radius));
+
+			out_color += c * texture(render_result, texcoord +
+				vec2(x,y) / vec2(textureSize(render_result, 0)));
+			sum += c;
+		}
+	}
+	out_color /= sum;
+    } else {
+    	out_color = texture(render_result, res_texcoord);
+    }
+
     
     if (mode == 1) {
 	out_color = floor(out_color * 4.0) / 3.0;
@@ -253,6 +277,7 @@ int main() try
     GLuint size_location = glGetUniformLocation(rectangle_program, "size");
     GLuint render_result_location = glGetUniformLocation(rectangle_program, "render_result");
     GLuint mode_location = glGetUniformLocation(rectangle_program, "mode");
+    GLuint time_location = glGetUniformLocation(rectangle_program, "time");
 
     glUniform1i(render_result_location, 0);
 
@@ -422,6 +447,7 @@ int main() try
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, fbt1);
 		glUniform1i(mode_location, i);
+		glUniform1f(time_location, time);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
