@@ -247,6 +247,26 @@ int main() try
     GLuint rectangle_vao;
     glGenVertexArrays(1, &rectangle_vao);
 
+    GLuint fbt1;
+    glGenTextures(1, &fbt1);
+    glBindTexture(GL_TEXTURE_2D, fbt1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width / 2, height / 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLuint rb1;
+    glGenRenderbuffers(1, &rb1);
+    glBindRenderbuffer(GL_RENDERBUFFER, rb1);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width / 2, height / 2);
+
+    GLuint fb1;
+    glGenFramebuffers(1, &fb1);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb1);
+    glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, fbt1, 0);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rb1);
+
+    if (glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) throw std::runtime_error("Framebuffer now set!"); 
+
     auto last_frame_start = std::chrono::high_resolution_clock::now();
 
     float time = 0.f;
@@ -272,6 +292,13 @@ int main() try
                 width = event.window.data1;
                 height = event.window.data2;
                 glViewport(0, 0, width, height);
+		
+	        glBindTexture(GL_TEXTURE_2D, fbt1);
+	        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width / 2, height / 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+                glBindRenderbuffer(GL_RENDERBUFFER, rb1);
+                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width / 2, height / 2);
+
                 break;
             }
             break;
