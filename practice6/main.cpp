@@ -123,11 +123,17 @@ in vec2 texcoord;
 
 uniform sampler2D render_result;
 
+uniform int mode;
+
 layout (location = 0) out vec4 out_color;
 
 void main()
 {
     out_color = texture(render_result, texcoord);
+    
+    if (mode == 1) {
+	out_color = floor(out_color * 4.0) / 3.0;
+    }
 }
 )";
 
@@ -246,6 +252,7 @@ int main() try
     GLuint center_location = glGetUniformLocation(rectangle_program, "center");
     GLuint size_location = glGetUniformLocation(rectangle_program, "size");
     GLuint render_result_location = glGetUniformLocation(rectangle_program, "render_result");
+    GLuint mode_location = glGetUniformLocation(rectangle_program, "mode");
 
     glUniform1i(render_result_location, 0);
 
@@ -271,7 +278,6 @@ int main() try
     glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rb1);
 
     if (glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) throw std::runtime_error("Framebuffer now set!"); 
-
     auto last_frame_start = std::chrono::high_resolution_clock::now();
 
     float time = 0.f;
@@ -415,6 +421,7 @@ int main() try
 		glBindVertexArray(rectangle_vao);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, fbt1);
+		glUniform1i(mode_location, i);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
