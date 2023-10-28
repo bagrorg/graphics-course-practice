@@ -69,11 +69,19 @@ const char fragment_shader_source[] =
 
 uniform vec3 camera_position;
 
+// albedo
 uniform vec3 albedo;
 uniform vec3 ambient_light;
 
+// sun
 uniform vec3 sun_direction;
 uniform vec3 sun_color;
+
+// point
+uniform vec3 pl_position;
+uniform vec3 pl_color;
+uniform vec3 pl_attenuation;
+
 
 in vec3 position;
 in vec3 normal;
@@ -88,7 +96,19 @@ void main()
 {
     vec3 ambient = albedo * ambient_light;
     vec3 color = ambient;
+    
+    // sun
     color += diffuse(sun_direction) * sun_color;
+
+    // point
+    vec3 dir = pl_position - position;
+    float dist = length(dir);
+    float att = 1 / 
+    	(pl_attenuation.x + 
+	 pl_attenuation.y * dist + 
+	 pl_attenuation.z * dist * dist);
+    color += diffuse(normalize(dir)) * pl_color * att;
+
     out_color = vec4(color, 1.0);
 }
 )";
@@ -177,6 +197,9 @@ int main() try {
     GLuint ambient_light_location = glGetUniformLocation(program, "ambient_light");
     GLuint sun_direction_location = glGetUniformLocation(program, "sun_direction");
     GLuint sun_color_location = glGetUniformLocation(program, "sun_color");
+    GLuint pl_position_location = glGetUniformLocation(program, "pl_position");
+    GLuint pl_color_location = glGetUniformLocation(program, "pl_color");
+    GLuint pl_attenuation_location = glGetUniformLocation(program, "pl_attenuation");
 
     std::string project_root = PROJECT_ROOT;
     std::string suzanne_model_path = project_root + "/suzanne.obj";
@@ -291,6 +314,9 @@ int main() try {
         glUniform3f(ambient_light_location, 0.2f, 0.2f, 0.2f);
         glUniform3f(sun_direction_location, 0.707f, 0.0f, 0.707f);
         glUniform3f(sun_color_location, 0.7f, 0.7f, 0.0f);
+        glUniform3f(pl_position_location, std::sin(time) / 2, 0.0f, 1.2f);
+        glUniform3f(pl_color_location, 0.0f, 0.7f, 0.0f);
+        glUniform3f(pl_attenuation_location, 1.0f, 0.0f, 0.01f);
 
         glBindVertexArray(suzanne_vao);
         glDrawElements(GL_TRIANGLES, suzanne.indices.size(), GL_UNSIGNED_INT, nullptr);
