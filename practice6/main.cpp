@@ -327,6 +327,9 @@ int main() try
             model_angle -= 2.f * dt;
         if (button_down[SDLK_RIGHT])
             model_angle += 2.f * dt;
+	
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb1);
+	glViewport(0, 0, width / 2, height / 2);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
@@ -357,11 +360,15 @@ int main() try
         glBindVertexArray(dragon_vao);
         glDrawElements(GL_TRIANGLES, dragon.indices.size(), GL_UNSIGNED_INT, nullptr);
 
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glViewport(0, 0, width, height);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         glUseProgram(rectangle_program);
         glUniform2f(center_location, -0.5f, -0.5f);
         glUniform2f(size_location, 0.5f, 0.5f);
         glBindVertexArray(rectangle_vao);
-//        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         SDL_GL_SwapWindow(window);
     }
