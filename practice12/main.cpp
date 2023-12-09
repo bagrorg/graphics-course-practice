@@ -16,6 +16,7 @@
 #include <random>
 #include <map>
 #include <cmath>
+#include <filesystem>
 
 #define GLM_FORCE_SWIZZLE
 #define GLM_ENABLE_EXPERIMENTAL
@@ -72,6 +73,7 @@ uniform vec3 camera_position;
 uniform vec3 light_direction;
 uniform vec3 bbox_min;
 uniform vec3 bbox_max;
+uniform sampler3D cloud;
 
 layout (location = 0) out vec4 out_color;
 
@@ -121,7 +123,11 @@ void main()
     float optical_depth = (ts.y - ts.x) * absorption;
     float opacity = 1.0 - exp(-optical_depth);
 
-    out_color = vec4(0.55, 0.5, 0.1, opacity);
+    vec3 p = camera_position + cam_ray * (ts.x + ts.y) / 2.0;
+    p = (p - bbox_min) / (bbox_max - bbox_min);
+    float col = texture(cloud, p).x;
+
+    out_color = vec4(vec3(col), 1.0);
 }
 )";
 
@@ -244,6 +250,7 @@ int main() try
     GLuint bbox_max_location = glGetUniformLocation(program, "bbox_max");
     GLuint camera_position_location = glGetUniformLocation(program, "camera_position");
     GLuint light_direction_location = glGetUniformLocation(program, "light_direction");
+    GLuint cloud_location = glGetUniformLocation(program, "cloud");
 
     GLuint vao, vbo, ebo;
     glGenVertexArrays(1, &vao);
@@ -259,6 +266,24 @@ int main() try
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+    namespace fs = std::filesystem;
+    fs::path cloud_path = std::string(PROJECT_ROOT) + "/cloud.data";
+    size_t size = fs::file_size(cloud_path);
+    std::vector<char> cloud_data(size);
+
+    std::ifstream in(cloud_path.string(), std::ios::binary);
+    in.read(cloud_data.data(), cloud_data.size());
+
+    GLuint cloud;
+    glGenTextures(1, &cloud);
+    glBindTexture(GL_TEXTURE_3D, cloud);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, 128, 64, 64, 0, GL_RED, GL_UNSIGNED_BYTE, cloud_data.data());   
 
     const std::string project_root = PROJECT_ROOT;
     const std::string cloud_data_path = project_root + "/cloud.data";
@@ -365,7 +390,8 @@ int main() try
         glUniform3fv(bbox_max_location, 1, reinterpret_cast<const float *>(&cloud_bbox_max));
         glUniform3fv(camera_position_location, 1, reinterpret_cast<float *>(&camera_position));
         glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
-
+	glUniform1i(cloud_location, 0);
+	
         glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES, std::size(cube_indices), GL_UNSIGNED_INT, nullptr);
 
