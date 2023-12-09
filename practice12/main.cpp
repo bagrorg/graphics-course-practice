@@ -122,13 +122,14 @@ void main()
     vec2 ts = intersect_bbox(camera_position, cam_ray);
     ts.x = max(ts.x, 0.0);
 
-    float absorption = 1.0;
-    float scattering = 4.0;
-    float extinction = scattering + absorption;
+    vec3 absorption = vec3(1.0);
+    vec3 scattering = vec3(8.42, 2.19, 6.16);
+    vec3 extinction = scattering + absorption;
+
     vec3 light_color = vec3(16.0);
     vec3 color = vec3(0.0);
 
-    float optical_depth = 0.0;
+    vec3 optical_depth = vec3(0.0);
     float dt = (ts.y - ts.x) / iters;
     for (int i = 0; i < iters; i++) {
     	float t = ts.x + (i + 0.5) * dt;
@@ -142,7 +143,7 @@ void main()
 	vec2 light_ts = intersect_bbox(p, light_direction);
 	light_ts.x = max(light_ts.x, 0.0);
 
-	float light_optical_depth = 0.0;
+	vec3 light_optical_depth = vec3(0.0);
 	float light_dt = (light_ts.y - light_ts.x) / inner_iters;	
 	for (int j = 0; j < inner_iters; j++) {
     		float light_t = light_ts.x + (j + 0.5) * light_dt;
@@ -157,9 +158,9 @@ void main()
 	color += exp(-light_optical_depth) * exp(-optical_depth) * dt * density * light_color * scattering / 4.0 / PI;
     }
 
-    float opacity = 1.0 - exp(-optical_depth);
+    //float opacity = 1.0 - exp(-optical_depth);
 
-    out_color = vec4(color, opacity);
+    out_color = vec4(color, 1.0);
 }
 )";
 
