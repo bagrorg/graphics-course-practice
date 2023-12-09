@@ -117,7 +117,11 @@ void main()
     vec2 ts = intersect_bbox(camera_position, cam_ray);
     ts.x = max(ts.x, 0.0);
 
-    out_color = vec4(vec3(ts.y - ts.x) / 4.0, 1.0);
+    float absorption = 1.0;
+    float optical_depth = (ts.y - ts.x) * absorption;
+    float opacity = 1.0 - exp(-optical_depth);
+
+    out_color = vec4(0.55, 0.5, 0.1, opacity);
 }
 )";
 
