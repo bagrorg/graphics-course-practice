@@ -16,6 +16,7 @@
 #include <random>
 #include <map>
 #include <cmath>
+#include <filesystem>
 
 #define GLM_FORCE_SWIZZLE
 #define GLM_ENABLE_EXPERIMENTAL
@@ -72,6 +73,7 @@ uniform vec3 camera_position;
 uniform vec3 light_direction;
 uniform vec3 bbox_min;
 uniform vec3 bbox_max;
+uniform sampler3D cloud;
 
 layout (location = 0) out vec4 out_color;
 
@@ -111,9 +113,54 @@ const float PI = 3.1415926535;
 
 in vec3 position;
 
+const int iters = 64;
+const int inner_iters = 16;
+
 void main()
 {
-    out_color = vec4(1.0, 0.5, 0.5, 1.0);
+    vec3 cam_ray = normalize(position - camera_position);
+    vec2 ts = intersect_bbox(camera_position, cam_ray);
+    ts.x = max(ts.x, 0.0);
+
+    vec3 absorption = vec3(1.0);
+    vec3 scattering = vec3(8.42, 2.19, 6.16);
+    vec3 extinction = scattering + absorption;
+
+    vec3 light_color = vec3(16.0);
+    vec3 color = vec3(0.0);
+
+    vec3 optical_depth = vec3(0.0);
+    float dt = (ts.y - ts.x) / iters;
+    for (int i = 0; i < iters; i++) {
+    	float t = ts.x + (i + 0.5) * dt;
+	vec3 p = camera_position + t * cam_ray;
+    	p = (p - bbox_min) / (bbox_max - bbox_min);
+
+	float density = texture(cloud, p).x;
+	
+	optical_depth += extinction * density * dt;
+
+	vec2 light_ts = intersect_bbox(p, light_direction);
+	light_ts.x = max(light_ts.x, 0.0);
+
+	vec3 light_optical_depth = vec3(0.0);
+	float light_dt = (light_ts.y - light_ts.x) / inner_iters;	
+	for (int j = 0; j < inner_iters; j++) {
+    		float light_t = light_ts.x + (j + 0.5) * light_dt;
+		vec3 light_p = p + light_t * light_direction;
+    		light_p = (light_p - bbox_min) / (bbox_max - bbox_min);
+		float light_density = texture(cloud, light_p).x;
+
+		light_optical_depth += extinction * light_density * light_dt;
+
+	}
+
+	color += exp(-light_optical_depth) * exp(-optical_depth) * dt * density * light_color * scattering / 4.0 / PI;
+    }
+
+    //float opacity = 1.0 - exp(-optical_depth);
+
+    out_color = vec4(color, 1.0);
 }
 )";
 
@@ -236,6 +283,7 @@ int main() try
     GLuint bbox_max_location = glGetUniformLocation(program, "bbox_max");
     GLuint camera_position_location = glGetUniformLocation(program, "camera_position");
     GLuint light_direction_location = glGetUniformLocation(program, "light_direction");
+    GLuint cloud_location = glGetUniformLocation(program, "cloud");
 
     GLuint vao, vbo, ebo;
     glGenVertexArrays(1, &vao);
@@ -251,6 +299,24 @@ int main() try
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+    namespace fs = std::filesystem;
+    fs::path cloud_path = std::string(PROJECT_ROOT) + "/cloud.data";
+    size_t size = fs::file_size(cloud_path);
+    std::vector<char> cloud_data(size);
+
+    std::ifstream in(cloud_path.string(), std::ios::binary);
+    in.read(cloud_data.data(), cloud_data.size());
+
+    GLuint cloud;
+    glGenTextures(1, &cloud);
+    glBindTexture(GL_TEXTURE_3D, cloud);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, 128, 64, 64, 0, GL_RED, GL_UNSIGNED_BYTE, cloud_data.data());   
 
     const std::string project_root = PROJECT_ROOT;
     const std::string cloud_data_path = project_root + "/cloud.data";
@@ -323,7 +389,7 @@ int main() try
         if (button_down[SDLK_s])
             view_angle += 2.f * dt;
 
-        glClearColor(0.8f, 0.8f, 0.9f, 0.f);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glEnable(GL_DEPTH_TEST);
@@ -357,7 +423,8 @@ int main() try
         glUniform3fv(bbox_max_location, 1, reinterpret_cast<const float *>(&cloud_bbox_max));
         glUniform3fv(camera_position_location, 1, reinterpret_cast<float *>(&camera_position));
         glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
-
+	glUniform1i(cloud_location, 0);
+	
         glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES, std::size(cube_indices), GL_UNSIGNED_INT, nullptr);
 
