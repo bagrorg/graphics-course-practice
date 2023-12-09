@@ -113,6 +113,9 @@ const float PI = 3.1415926535;
 
 in vec3 position;
 
+const int iters = 64;
+const int inner_iters = 16;
+
 void main()
 {
     vec3 cam_ray = normalize(position - camera_position);
@@ -120,14 +123,43 @@ void main()
     ts.x = max(ts.x, 0.0);
 
     float absorption = 1.0;
-    float optical_depth = (ts.y - ts.x) * absorption;
+    float scattering = 4.0;
+    float extinction = scattering + absorption;
+    vec3 light_color = vec3(16.0);
+    vec3 color = vec3(0.0);
+
+    float optical_depth = 0.0;
+    float dt = (ts.y - ts.x) / iters;
+    for (int i = 0; i < iters; i++) {
+    	float t = ts.x + (i + 0.5) * dt;
+	vec3 p = camera_position + t * cam_ray;
+    	p = (p - bbox_min) / (bbox_max - bbox_min);
+
+	float density = texture(cloud, p).x;
+	
+	optical_depth += extinction * density * dt;
+
+	vec2 light_ts = intersect_bbox(p, light_direction);
+	light_ts.x = max(light_ts.x, 0.0);
+
+	float light_optical_depth = 0.0;
+	float light_dt = (light_ts.y - light_ts.x) / inner_iters;	
+	for (int j = 0; j < inner_iters; j++) {
+    		float light_t = light_ts.x + (j + 0.5) * light_dt;
+		vec3 light_p = p + light_t * light_direction;
+    		light_p = (light_p - bbox_min) / (bbox_max - bbox_min);
+		float light_density = texture(cloud, light_p).x;
+
+		light_optical_depth += extinction * light_density * light_dt;
+
+	}
+
+	color += exp(-light_optical_depth) * exp(-optical_depth) * dt * density * light_color * scattering / 4.0 / PI;
+    }
+
     float opacity = 1.0 - exp(-optical_depth);
 
-    vec3 p = camera_position + cam_ray * (ts.x + ts.y) / 2.0;
-    p = (p - bbox_min) / (bbox_max - bbox_min);
-    float col = texture(cloud, p).x;
-
-    out_color = vec4(vec3(col), 1.0);
+    out_color = vec4(color, opacity);
 }
 )";
 
@@ -356,7 +388,7 @@ int main() try
         if (button_down[SDLK_s])
             view_angle += 2.f * dt;
 
-        glClearColor(0.8f, 0.8f, 0.9f, 0.f);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glEnable(GL_DEPTH_TEST);
