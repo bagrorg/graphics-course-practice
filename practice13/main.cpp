@@ -51,19 +51,31 @@ R"(#version 330 core
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4x3 bones[100];
 
 layout (location = 0) in vec3 in_position;
 layout (location = 1) in vec3 in_normal;
 layout (location = 2) in vec2 in_texcoord;
+layout (location = 3) in ivec4 in_joints;
+layout (location = 4) in vec4 in_weights;
+
 
 out vec3 normal;
 out vec2 texcoord;
+out vec4 ws;
 
 void main()
 {
-    gl_Position = projection * view * model * vec4(in_position, 1.0);
-    normal = mat3(model) * in_normal;
+    mat4x3 avg_mat = 	bones[in_joints[0]] * in_weights[0] +
+			bones[in_joints[1]] * in_weights[1] + 
+			bones[in_joints[2]] * in_weights[2] + 
+			bones[in_joints[3]] * in_weights[3];
+
+
+    gl_Position = projection * view * model * mat4(avg_mat) * vec4(in_position, 1.0);
+    normal = mat3(model) * mat3(avg_mat) * in_normal;
     texcoord = in_texcoord;
+    ws = in_weights;
 }
 )";
 
@@ -80,6 +92,7 @@ layout (location = 0) out vec4 out_color;
 
 in vec3 normal;
 in vec2 texcoord;
+in vec4 ws;
 
 void main()
 {
@@ -185,9 +198,10 @@ int main() try
     GLuint color_location = glGetUniformLocation(program, "color");
     GLuint use_texture_location = glGetUniformLocation(program, "use_texture");
     GLuint light_direction_location = glGetUniformLocation(program, "light_direction");
+    GLuint bones_location = glGetUniformLocation(program, "bones");
 
     const std::string project_root = PROJECT_ROOT;
-    const std::string model_path = project_root + "/wolf/Wolf-Blender-2.82a.gltf";
+    const std::string model_path = project_root + "/dancing/dancing.gltf";
 
     auto const input_model = load_gltf(model_path);
     GLuint vbo;
@@ -214,20 +228,23 @@ int main() try
     std::vector<mesh> meshes;
     for (auto const & mesh : input_model.meshes)
     {
-        auto & result = meshes.emplace_back();
-        glGenVertexArrays(1, &result.vao);
-        glBindVertexArray(result.vao);
+        for (auto const & primitive : mesh.primitives)
+        {
+            auto & result = meshes.emplace_back();
+            glGenVertexArrays(1, &result.vao);
+            glBindVertexArray(result.vao);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo);
-        result.indices = mesh.indices;
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo);
+            result.indices = primitive.indices;
 
-        setup_attribute(0, mesh.position);
-        setup_attribute(1, mesh.normal);
-        setup_attribute(2, mesh.texcoord);
-        setup_attribute(3, mesh.joints, true);
-        setup_attribute(4, mesh.weights);
+            setup_attribute(0, primitive.position);
+            setup_attribute(1, primitive.normal);
+            setup_attribute(2, primitive.texcoord);
+            setup_attribute(3, primitive.joints, true);
+            setup_attribute(4, primitive.weights);
 
-        result.material = mesh.material;
+            result.material = primitive.material;
+        }
     }
 
     std::map<std::string, GLuint> textures;
@@ -261,15 +278,21 @@ int main() try
 
     std::map<SDL_Keycode, bool> button_down;
 
-    float view_angle = glm::pi<float>() / 8.f;
-    float camera_distance = 0.75f;
+    float view_angle = 0.f;
+    float camera_distance = 1.5f;
 
-    float camera_rotation = glm::pi<float>() * (- 1.f / 3.f);
-    float camera_height = 0.25f;
+    float camera_rotation = 0.f;
+    float camera_height = 1.f;
 
     bool paused = false;
 
     bool running = true;
+    float prev = 0;
+    size_t anim_id = 0;
+    std::vector<std::string> anim_keys = {"hip-hop", "rumba", "flair"};
+    std::vector<glm::vec3> t_cache(input_model.bones.size());
+    std::vector<glm::vec3> s_cache(input_model.bones.size());
+    std::vector<glm::quat> r_cache(input_model.bones.size());
     while (running)
     {
         for (SDL_Event event; SDL_PollEvent(&event);) switch (event.type)
@@ -321,6 +344,19 @@ int main() try
         if (button_down[SDLK_s])
             view_angle += 2.f * dt;
 
+	if (button_down[SDLK_1]) {
+	    prev = time;
+	    anim_id = 0;
+	}
+	if (button_down[SDLK_2]) {
+	    prev = time;
+	    anim_id = 1;
+	}
+	if (button_down[SDLK_3]) {
+	    prev = time;
+	    anim_id = 2;
+	}
+
         glClearColor(0.8f, 0.8f, 1.f, 0.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -330,8 +366,40 @@ int main() try
 
         float near = 0.1f;
         float far = 100.f;
+	float scale = 0.75 + cos(time) * 0.23;
 
-        glm::mat4 model(1.f);
+	float t = std::clamp((time - prev) / 10, 0.f, 1.f);
+        if (prev == 0) t = 1;
+
+	auto animation = input_model.animations.at(anim_keys[anim_id]);
+
+	std::vector<glm::mat4x3> bones_tr;
+	for (size_t i = 0; i < input_model.bones.size(); i++) {
+		float frame = std::fmod(time, animation.max_time);
+		
+		auto translate = glm::lerp(t_cache[i], animation.bones[i].translation(frame), t);
+		auto scale = glm::lerp(s_cache[i], animation.bones[i].scale(frame), t);
+		auto rotation = glm::slerp(r_cache[i], animation.bones[i].rotation(frame), t);
+
+		t_cache[i] = translate;
+		s_cache[i] = scale;
+		r_cache[i] = rotation;
+
+		glm::mat4 transform = glm::translate(glm::mat4(1.f), translate) * glm::toMat4(rotation)* glm::scale(glm::mat4(1.f), scale);
+		
+		if (input_model.bones[i].parent != -1) {
+			assert(input_model.bones[i].parent < i);
+			transform = bones_tr[input_model.bones[i].parent] * transform;
+		}
+
+		bones_tr.push_back(glm::mat4x3(transform));
+	}
+
+	for (size_t i = 0; i < input_model.bones.size(); i++) {
+		bones_tr[i] = bones_tr[i] * input_model.bones[i].inverse_bind_matrix;
+	}
+
+        glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(0.01f));
 
         glm::mat4 view(1.f);
         view = glm::translate(view, {0.f, 0.f, -camera_distance});
@@ -350,6 +418,7 @@ int main() try
         glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
         glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
         glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
+	glUniformMatrix4x3fv(bones_location, bones_tr.size(), GL_FALSE, reinterpret_cast<float *>(bones_tr.data()));
 
         auto draw_meshes = [&](bool transparent)
         {
