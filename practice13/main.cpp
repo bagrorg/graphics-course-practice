@@ -72,8 +72,8 @@ void main()
 			bones[in_joints[3]] * in_weights[3];
 
 
-    gl_Position = projection * view * mat4(avg_mat) * model * vec4(in_position, 1.0);
-    normal = mat3(avg_mat) * mat3(model) * in_normal;
+    gl_Position = projection * view * model * mat4(avg_mat) * vec4(in_position, 1.0);
+    normal = mat3(model) * mat3(avg_mat) * in_normal;
     texcoord = in_texcoord;
     ws = in_weights;
 }
@@ -349,12 +349,27 @@ int main() try
         float far = 100.f;
 	float scale = 0.75 + cos(time) * 0.23;
 
+	auto animation = input_model.animations.at("hip-hop");
+
 	std::vector<glm::mat4x3> bones_tr;
 	for (size_t i = 0; i < input_model.bones.size(); i++) {
-		bones_tr.emplace_back(glm::mat4x3(scale));
+		glm::mat4 transform = glm::translate(glm::mat4(1.f), animation.bones[i].translation(0.f)) *
+				      glm::toMat4(animation.bones[i].rotation(0.f)) *
+				      glm::scale(glm::mat4(1.f), animation.bones[i].scale(0.f));
+		
+		if (input_model.bones[i].parent != -1) {
+			assert(input_model.bones[i].parent < i);
+			transform = bones_tr[input_model.bones[i].parent] * transform;
+		}
+
+		bones_tr.push_back(glm::mat4x3(transform));
 	}
 
-        glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(1.f));
+	for (size_t i = 0; i < input_model.bones.size(); i++) {
+		bones_tr[i] = bones_tr[i] * input_model.bones[i].inverse_bind_matrix;
+	}
+
+        glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(0.01f));
 
         glm::mat4 view(1.f);
         view = glm::translate(view, {0.f, 0.f, -camera_distance});
