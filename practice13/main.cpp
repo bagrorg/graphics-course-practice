@@ -287,6 +287,12 @@ int main() try
     bool paused = false;
 
     bool running = true;
+    float prev = 0;
+    size_t anim_id = 0;
+    std::vector<std::string> anim_keys = {"hip-hop", "rumba", "flair"};
+    std::vector<glm::vec3> t_cache(input_model.bones.size());
+    std::vector<glm::vec3> s_cache(input_model.bones.size());
+    std::vector<glm::quat> r_cache(input_model.bones.size());
     while (running)
     {
         for (SDL_Event event; SDL_PollEvent(&event);) switch (event.type)
@@ -338,6 +344,19 @@ int main() try
         if (button_down[SDLK_s])
             view_angle += 2.f * dt;
 
+	if (button_down[SDLK_1]) {
+	    prev = time;
+	    anim_id = 0;
+	}
+	if (button_down[SDLK_2]) {
+	    prev = time;
+	    anim_id = 1;
+	}
+	if (button_down[SDLK_3]) {
+	    prev = time;
+	    anim_id = 2;
+	}
+
         glClearColor(0.8f, 0.8f, 1.f, 0.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -349,13 +368,24 @@ int main() try
         float far = 100.f;
 	float scale = 0.75 + cos(time) * 0.23;
 
-	auto animation = input_model.animations.at("hip-hop");
+	float t = std::clamp((time - prev) / 10, 0.f, 1.f);
+        if (prev == 0) t = 1;
+
+	auto animation = input_model.animations.at(anim_keys[anim_id]);
 
 	std::vector<glm::mat4x3> bones_tr;
 	for (size_t i = 0; i < input_model.bones.size(); i++) {
-		glm::mat4 transform = glm::translate(glm::mat4(1.f), animation.bones[i].translation(0.f)) *
-				      glm::toMat4(animation.bones[i].rotation(0.f)) *
-				      glm::scale(glm::mat4(1.f), animation.bones[i].scale(0.f));
+		float frame = std::fmod(time, animation.max_time);
+		
+		auto translate = glm::lerp(t_cache[i], animation.bones[i].translation(frame), t);
+		auto scale = glm::lerp(s_cache[i], animation.bones[i].scale(frame), t);
+		auto rotation = glm::slerp(r_cache[i], animation.bones[i].rotation(frame), t);
+
+		t_cache[i] = translate;
+		s_cache[i] = scale;
+		r_cache[i] = rotation;
+
+		glm::mat4 transform = glm::translate(glm::mat4(1.f), translate) * glm::toMat4(rotation)* glm::scale(glm::mat4(1.f), scale);
 		
 		if (input_model.bones[i].parent != -1) {
 			assert(input_model.bones[i].parent < i);
