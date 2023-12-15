@@ -51,20 +51,31 @@ R"(#version 330 core
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4x3 bones[100];
 
 layout (location = 0) in vec3 in_position;
 layout (location = 1) in vec3 in_normal;
 layout (location = 2) in vec2 in_texcoord;
+layout (location = 3) in ivec4 in_joints;
+layout (location = 4) in vec4 in_weights;
+
 
 out vec3 normal;
 out vec2 texcoord;
+out vec4 ws;
 
 void main()
 {
+    mat4x3 avg_mat = 	bones[in_joints[0]] * in_weights[0] +
+			bones[in_joints[1]] * in_weights[1] + 
+			bones[in_joints[2]] * in_weights[2] + 
+			bones[in_joints[3]] * in_weights[3];
 
-    gl_Position = projection * view * model * vec4(in_position, 1.0);
-    normal = mat3(model) * in_normal;
+
+    gl_Position = projection * view * mat4(avg_mat) * model * vec4(in_position, 1.0);
+    normal = mat3(avg_mat) * mat3(model) * in_normal;
     texcoord = in_texcoord;
+    ws = in_weights;
 }
 )";
 
@@ -81,6 +92,7 @@ layout (location = 0) out vec4 out_color;
 
 in vec3 normal;
 in vec2 texcoord;
+in vec4 ws;
 
 void main()
 {
@@ -186,6 +198,7 @@ int main() try
     GLuint color_location = glGetUniformLocation(program, "color");
     GLuint use_texture_location = glGetUniformLocation(program, "use_texture");
     GLuint light_direction_location = glGetUniformLocation(program, "light_direction");
+    GLuint bones_location = glGetUniformLocation(program, "bones");
 
     const std::string project_root = PROJECT_ROOT;
     const std::string model_path = project_root + "/dancing/dancing.gltf";
@@ -334,6 +347,12 @@ int main() try
 
         float near = 0.1f;
         float far = 100.f;
+	float scale = 0.75 + cos(time) * 0.23;
+
+	std::vector<glm::mat4x3> bones_tr;
+	for (size_t i = 0; i < input_model.bones.size(); i++) {
+		bones_tr.emplace_back(glm::mat4x3(scale));
+	}
 
         glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(1.f));
 
@@ -354,6 +373,7 @@ int main() try
         glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
         glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
         glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
+	glUniformMatrix4x3fv(bones_location, bones_tr.size(), GL_FALSE, reinterpret_cast<float *>(bones_tr.data()));
 
         auto draw_meshes = [&](bool transparent)
         {
