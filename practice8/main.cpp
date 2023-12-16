@@ -399,11 +399,6 @@ try
         float near = 0.1f;
         float far = 100.f;
 
-		glm::vec3 light_z = glm::vec3(0, -1, 0);
-		glm::vec3 light_x = glm::vec3(1, 0, 0);
-		glm::vec3 light_y = glm::cross(light_x, light_z);
-
-		glm::mat4 proj = glm::mat4(glm::transpose(glm::mat3(light_x, light_y, light_z)));
 
         glm::mat4 model(1.f);
 
@@ -419,6 +414,12 @@ try
         glm::vec3 camera_position = (glm::inverse(view) * glm::vec4(0.f, 0.f, 0.f, 1.f)).xyz();
 
         glm::vec3 sun_direction = glm::normalize(glm::vec3(std::sin(time * 0.5f), 2.f, std::cos(time * 0.5f)));
+
+		glm::vec3 light_z = -sun_direction;
+		glm::vec3 light_x = glm::normalize(glm::vec3(std::sin(time * 0.5f), -0.5f, std::cos(time * 0.5f)));
+		glm::vec3 light_y = glm::cross(light_x, light_z);
+
+		glm::mat4 proj = glm::mat4(glm::transpose(glm::mat3(light_x, light_y, light_z)));
 
 
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadow_map_fbo);
