@@ -48,10 +48,17 @@ const char vertex_shader_source[] =
 R"(#version 330 core
 
 layout (location = 0) in vec3 in_position;
+layout (location = 1) in float in_size;
+layout (location = 2) in float in_angle;
+
+out float size;
+out float angle;
 
 void main()
 {
     gl_Position = vec4(in_position, 1.0);
+	size = in_size;
+	angle = in_angle;
 }
 )";
 
@@ -64,13 +71,48 @@ uniform mat4 projection;
 uniform vec3 camera_position;
 
 layout (points) in;
-layout (points, max_vertices = 1) out;
+layout (triangle_strip, max_vertices = 4) out;
+
+in float size[];
+in float angle[];
+
+out vec2 texcoord;
+out float alpha_size;
 
 void main()
 {
     vec3 center = gl_in[0].gl_Position.xyz;
-    gl_Position = projection * view * model * vec4(center, 1.0);
+
+	vec3 Z = normalize(camera_position - center);
+    vec3 X = normalize(vec3(-Z.z, 0.0, Z.x));
+    vec3 Y = normalize(cross(X, Z));
+
+	vec3 newX = X * cos(angle[0]) + Y * sin(angle[0]);
+    vec3 newY = Y * cos(angle[0]) - X * sin(angle[0]);
+
+	mat3 T = (mat3(newX, newY, Z));
+
+    gl_Position = projection * view * model * vec4(center + T * vec3(size[0], size[0], 0), 1.0);
+	texcoord = vec2(1, 1);
+	alpha_size = size[0];
     EmitVertex();
+
+    gl_Position = projection * view * model * vec4(center + T * vec3(-size[0], size[0], 0), 1.0);
+	texcoord = vec2(1, 0);
+	alpha_size = size[0];
+    EmitVertex();
+
+    gl_Position = projection * view * model * vec4(center + T * vec3(size[0], -size[0], 0), 1.0);
+	texcoord = vec2(0, 1);
+	alpha_size = size[0];
+    EmitVertex();
+
+    gl_Position = projection * view * model * vec4(center + T * vec3(-size[0], -size[0], 0), 1.0);
+	texcoord = vec2(0, 0);
+	alpha_size = size[0];
+    EmitVertex();
+
+
     EndPrimitive();
 }
 
@@ -79,13 +121,41 @@ void main()
 const char fragment_shader_source[] =
 R"(#version 330 core
 
+uniform sampler2D tex;
+uniform sampler1D coltex;
+
 layout (location = 0) out vec4 out_color;
+
+in vec2 texcoord;
+in float alpha_size;
 
 void main()
 {
-    out_color = vec4(1.0, 0.0, 0.0, 1.0);
+	float norm_size = (alpha_size - 0.2) / 0.2;
+	float a = norm_size * texture(tex, texcoord).r;
+	vec4 col = texture(coltex, a);
+    out_color = vec4(col.rgb, a);
 }
 )";
+
+GLuint load_texture(std::string const & path)
+{
+	assert(std::filesystem::exists(path));
+    int width, height, channels;
+    auto pixels = stbi_load(path.data(), &width, &height, &channels, 4);
+
+    GLuint result;
+    glGenTextures(1, &result);
+    glBindTexture(GL_TEXTURE_2D, result);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(pixels);
+
+    return result;
+}
 
 GLuint create_shader(GLenum type, const char * source)
 {
@@ -129,6 +199,10 @@ GLuint create_program(Shaders ... shaders)
 struct particle
 {
     glm::vec3 position;
+	float size;
+	float angle = 0;
+	glm::vec3 speed;
+	float angle_speed = 0;
 };
 
 int main() try
@@ -178,16 +252,30 @@ int main() try
     GLuint view_location = glGetUniformLocation(program, "view");
     GLuint projection_location = glGetUniformLocation(program, "projection");
     GLuint camera_position_location = glGetUniformLocation(program, "camera_position");
+    GLuint tex_location = glGetUniformLocation(program, "tex");
+    GLuint coltex_location = glGetUniformLocation(program, "coltex");
 
     std::default_random_engine rng;
-
-    std::vector<particle> particles(256);
-    for (auto & p : particles)
-    {
+	
+	auto init_particle = [&rng](particle &p) {
         p.position.x = std::uniform_real_distribution<float>{-1.f, 1.f}(rng);
         p.position.y = 0.f;
         p.position.z = std::uniform_real_distribution<float>{-1.f, 1.f}(rng);
-    }
+
+		p.size = std::uniform_real_distribution<float>{0.2, 0.4}(rng);
+
+        p.speed.x = std::uniform_real_distribution<float>{-1.f, 1.f}(rng);
+        p.speed.y = std::uniform_real_distribution<float>{-1.f, 1.f}(rng);
+        p.speed.z = std::uniform_real_distribution<float>{-1.f, 1.f}(rng);
+
+		p.angle_speed = std::uniform_real_distribution<float>{-3, 5}(rng);
+	};
+
+    std::vector<particle> particles;
+    //for (auto & p : particles)
+    //{
+	//	init_particle(p);
+    //}
 
     GLuint vao, vbo;
     glGenVertexArrays(1, &vao);
@@ -198,9 +286,30 @@ int main() try
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(particle), (void*)(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(particle), (void*)(0 + sizeof(particle::position)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(particle), (void*)(0 + sizeof(particle::position) + sizeof(particle::size)));
 
     const std::string project_root = PROJECT_ROOT;
     const std::string particle_texture_path = project_root + "/particle.png";
+
+	GLuint particle_tex = load_texture(particle_texture_path);
+
+	std::vector<glm::vec4> colors1d = {
+        glm::vec4(1.f, 1.f, 0.f, 1.f),
+        glm::vec4(0.5f, 1.f, 0.5f, 1.f),
+        glm::vec4(0.5f, 1.f, 0.f, 1.f),
+        glm::vec4(0.25f, 1.f, 0.f, 1.f),
+        glm::vec4(0.f, 1.f, 0.f, 1.f)
+    };
+
+    GLuint colors1d_tex;
+    glGenTextures(1, &colors1d_tex);
+    glBindTexture(GL_TEXTURE_1D, colors1d_tex);
+    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, 3, 0, GL_RGBA, GL_FLOAT, colors1d.data());
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glPointSize(5.f);
 
@@ -264,7 +373,9 @@ int main() try
             camera_rotation += 3.f * dt;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
+        //glEnable(GL_DEPTH_TEST);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         float near = 0.1f;
         float far = 100.f;
@@ -279,6 +390,30 @@ int main() try
         glm::mat4 projection = glm::perspective(glm::pi<float>() / 2.f, (1.f * width) / height, near, far);
 
         glm::vec3 camera_position = (glm::inverse(view) * glm::vec4(0.f, 0.f, 0.f, 1.f)).xyz();
+		
+		float A = 3;
+		float C = 2;
+		float D = 0.1;
+		
+		if (particles.size() < 256) {
+			auto &p = particles.emplace_back();
+			init_particle(p);
+		}
+
+		if (!paused) {
+			for (auto &p: particles) {
+				p.speed.y += dt * A;
+
+				p.position += p.speed * dt;
+				p.speed *= std::exp(-C * dt);
+				p.size *= std::exp(-D * dt);
+				p.angle += p.angle_speed * dt;
+
+				if (p.size < 0.001 || p.position.y > 3) {
+					init_particle(p);
+				}
+			}
+		}
 
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, particles.size() * sizeof(particle), particles.data(), GL_STATIC_DRAW);
@@ -289,6 +424,14 @@ int main() try
         glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
         glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
         glUniform3fv(camera_position_location, 1, reinterpret_cast<float *>(&camera_position));
+		glUniform1i(tex_location, 0);
+		glUniform1i(coltex_location, 1);
+
+		glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, particle_tex);
+
+		glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_1D, colors1d_tex);
 
         glBindVertexArray(vao);
         glDrawArrays(GL_POINTS, 0, particles.size());
