@@ -78,19 +78,25 @@ void main()
 {
     vec3 center = gl_in[0].gl_Position.xyz;
 
-    gl_Position = projection * view * model * vec4(center + vec3(size[0], size[0], 0), 1.0);
+	vec3 Z = normalize(camera_position - center);
+    vec3 X = normalize(vec3(-Z.z, 0.0, Z.x));
+    vec3 Y = normalize(cross(X, Z));
+
+	mat3 T = (mat3(X, Y, Z));
+
+    gl_Position = projection * view * model * vec4(center + T * vec3(size[0], size[0], 0), 1.0);
 	texcoord = vec2(1, 1);
     EmitVertex();
 
-    gl_Position = projection * view * model * vec4(center + vec3(-size[0], size[0], 0), 1.0);
+    gl_Position = projection * view * model * vec4(center + T * vec3(-size[0], size[0], 0), 1.0);
 	texcoord = vec2(1, 0);
     EmitVertex();
 
-    gl_Position = projection * view * model * vec4(center + vec3(size[0], -size[0], 0), 1.0);
+    gl_Position = projection * view * model * vec4(center + T * vec3(size[0], -size[0], 0), 1.0);
 	texcoord = vec2(0, 1);
     EmitVertex();
 
-    gl_Position = projection * view * model * vec4(center + vec3(-size[0], -size[0], 0), 1.0);
+    gl_Position = projection * view * model * vec4(center + T * vec3(-size[0], -size[0], 0), 1.0);
 	texcoord = vec2(0, 0);
     EmitVertex();
 
