@@ -72,20 +72,26 @@ layout (triangle_strip, max_vertices = 4) out;
 
 in float size[];
 
+out vec2 texcoord;
+
 void main()
 {
     vec3 center = gl_in[0].gl_Position.xyz;
 
     gl_Position = projection * view * model * vec4(center + vec3(size[0], size[0], 0), 1.0);
+	texcoord = vec2(1, 1);
     EmitVertex();
 
     gl_Position = projection * view * model * vec4(center + vec3(-size[0], size[0], 0), 1.0);
+	texcoord = vec2(1, 0);
     EmitVertex();
 
     gl_Position = projection * view * model * vec4(center + vec3(size[0], -size[0], 0), 1.0);
+	texcoord = vec2(0, 1);
     EmitVertex();
 
     gl_Position = projection * view * model * vec4(center + vec3(-size[0], -size[0], 0), 1.0);
+	texcoord = vec2(0, 0);
     EmitVertex();
 
 
@@ -99,9 +105,11 @@ R"(#version 330 core
 
 layout (location = 0) out vec4 out_color;
 
+in vec2 texcoord;
+
 void main()
 {
-    out_color = vec4(1.0, 0.0, 0.0, 1.0);
+    out_color = vec4(texcoord, 0.0, 1.0);
 }
 )";
 
