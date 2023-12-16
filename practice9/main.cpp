@@ -91,7 +91,22 @@ void main()
     bool in_shadow_texture = (shadow_pos.x > 0.0) && (shadow_pos.x < 1.0) && (shadow_pos.y > 0.0) && (shadow_pos.y < 1.0) && (shadow_pos.z > 0.0) && (shadow_pos.z < 1.0);
     float shadow_factor = 1.0;
     if (in_shadow_texture) {
-		vec2 data = texture(shadow_map, shadow_pos.xy).rg;
+		vec2 sum = vec2(0.0, 0.0);
+		vec2 sum_cum = vec2(0.0, 0.0);
+		int N = 4;
+		float r = 5.0;
+		for (int i = -N; i <= N; i++) {
+			for (int j = -N; j <= N; j++) {
+				float c = exp(-1 * float(i * i + j * j) / (r * r));
+				vec2 diff = vec2(i, j) / vec2(textureSize(shadow_map, 0));
+
+				sum += c * texture(shadow_map, shadow_pos.xy + diff).rg;
+				sum_cum += c;
+			}
+		}
+
+
+		vec2 data = sum / sum_cum;
 		float mu = data.r;
 		float sigma = data.g - mu * mu;
 		float z = shadow_pos.z - 0.01;
