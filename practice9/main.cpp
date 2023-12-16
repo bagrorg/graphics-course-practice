@@ -94,9 +94,17 @@ void main()
 		vec2 data = texture(shadow_map, shadow_pos.xy).rg;
 		float mu = data.r;
 		float sigma = data.g - mu * mu;
-		float z = shadow_pos.z;
+		float z = shadow_pos.z - 0.01;
 		float factor = (z < mu) ? 1.0
 			: sigma / (sigma + (z - mu) * (z - mu));
+
+		float delta = 0.125;
+
+		if (factor < delta) {
+			factor = 0;
+		} else {
+			factor = (factor - delta) / (1 - delta);
+		}
 
 		shadow_factor = factor;
 	}
@@ -170,7 +178,12 @@ out vec4 outz;
 void main()
 {
 	float z = gl_FragCoord.z;
-	outz = vec4(z, z * z, 0.0, 0.0);	
+
+	float dzdx = dFdx(z);
+	float dzdy = dFdy(z);
+	float depth_grad = 0.25 * (dzdx * dzdx + dzdy * dzdy);
+
+	outz = vec4(z, z * z + depth_grad, 0.0, 0.0);	
 }
 )";
 
