@@ -143,16 +143,33 @@ void main()
 	vec4 ndc = proj * model * vec4(position, 1.0);
 	bool in_shadow = (ndc.x >= -1.0 && ndc.x <= 1.0) && (ndc.y >= -1.0 && ndc.y <= 1.0);
 	bool skip_light = false;
+
+    float ambient_light = 0.2;
+    vec3 color = albedo * ambient_light;
+
 	if (in_shadow) {
 		vec2 shadow_texcoord = ndc.xy * 0.5 + 0.5;
 		float shadow_depth = ndc.z * 0.5 + 0.5;
 		skip_light = texture(shadow_map, vec3(shadow_texcoord, shadow_depth)) == 0.0;
-	}
 
-    float ambient_light = 0.2;
-    vec3 color = albedo * ambient_light;
-	if (!skip_light) {
-		color = color + sun_color * phong(sun_direction);
+		float sum = 0.0;
+		float sum_cum = 0.0;
+		int N = 4;
+		float r = 3.0;
+		for (int i = -N; i <= N; i++) {
+			for (int j = -N; j <= N; j++) {
+				float c = exp(-1 * float(i * i + j * j) / (r * r));
+				vec2 diff = vec2(i, j) / vec2(textureSize(shadow_map, 0));
+
+				sum += c * texture(shadow_map, vec3(shadow_texcoord + diff, shadow_depth));
+				sum_cum += c;
+			}
+		}
+
+		color += sum / sum_cum * sun_color * phong(sun_direction);
+	}
+	else {
+		color += sun_color * phong(sun_direction);
 	}
 
     out_color = vec4(color, 1.0);
