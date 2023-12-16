@@ -25,6 +25,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/extended_min_max.hpp>
 
 #include "obj_parser.hpp"
 
@@ -273,6 +274,20 @@ int main() try
     std::string scene_path = project_root + "/bunny.obj";
     obj_data scene = parse_obj(scene_path);
 
+	auto toglm = [](const std::array<float, 3>&p) {
+		return glm::vec3(p[0], p[1], p[2]);
+	};
+
+	glm::vec3 bbox_min = toglm(scene.vertices[0].position);
+	glm::vec3 bbox_max = toglm(scene.vertices[0].position);
+
+	for (size_t i = 1; i < scene.vertices.size(); i++) {
+		bbox_min = glm::min(bbox_min, toglm(scene.vertices[i].position));
+		bbox_max = glm::max(bbox_max, toglm(scene.vertices[i].position));
+	}
+
+	glm::vec3 C = (bbox_min + bbox_max) / 2.f;
+
     GLuint vao, vbo, ebo;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -387,15 +402,52 @@ int main() try
         glm::vec3 light_z = -light_direction;
         glm::vec3 light_x = glm::normalize(glm::cross(light_z, {0.f, 1.f, 0.f}));
         glm::vec3 light_y = glm::cross(light_x, light_z);
-        float shadow_scale = 2.f;
 
-        glm::mat4 transform = glm::mat4(1.f);
-        for (size_t i = 0; i < 3; ++i)
-        {
-            transform[i][0] = shadow_scale * light_x[i];
-            transform[i][1] = shadow_scale * light_y[i];
-            transform[i][2] = shadow_scale * light_z[i];
-        }
+		glm::vec3 shadow_scale = {0, 0, 0};
+		std::array<glm::vec3, 2> tmp = {bbox_min, bbox_max};
+		for (size_t i = 0; i < 2; i++) {
+			for (size_t j = 0; j < 2; j++) {
+				for (size_t k = 0; k < 2; k++) {
+					float x = tmp[i].x;
+					float y = tmp[j].y;
+					float z = tmp[k].z;
+					glm::vec3 V(x, y, z);
+
+					glm::vec3 tmp_scale = {
+						abs(glm::dot(V - C, light_x)),
+						abs(glm::dot(V - C, light_y)),
+						abs(glm::dot(V - C, light_z)),
+					};
+					
+					shadow_scale = glm::max(shadow_scale, tmp_scale);
+				}
+			}
+		}
+
+		glm::mat4 scale = glm::mat4(
+				1 / shadow_scale.x,			0,					0,					0,
+				0,							1 / shadow_scale.y, 0,					0,
+				0,							0,					1 / shadow_scale.z,	0,
+				0,							0,					0,					1
+		);
+
+		glm::mat4 rotate = glm::transpose(
+				glm::mat4(
+					glm::vec4(light_x, 0),
+					glm::vec4(light_y, 0),
+					glm::vec4(light_z, 0),
+					glm::vec4(0, 0, 0, 1)
+				)
+		);
+
+		glm::mat4 shift = glm::mat4(
+				1,						0,					0,					0,
+				0,						1,					0,					0,
+				0,						0,					1,					0,
+				-C[0],					-C[1],				-C[2],				1
+		);
+
+        glm::mat4 transform = scale * rotate * shift;
 
         glUseProgram(shadow_program);
         glUniformMatrix4fv(shadow_model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
